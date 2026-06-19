@@ -387,7 +387,18 @@
 
         const msalInstance = new msal.PublicClientApplication(msalConfig);
 
-   window.envoyerVersOutlook = async (titre, date) => {
+  // 1. FONCTION POUR LE BOUTON "LIER OUTLOOK"
+window.connectOutlook = async () => {
+    try {
+        await msalInstance.loginPopup({ scopes: ["Calendars.ReadWrite"] });
+        alert("✅ Connecté avec succès !");
+    } catch (error) {
+        alert("⚠️ Connexion annulée.");
+    }
+};
+
+// 2. FONCTION POUR LES BOUTONS SUR TES TÂCHES
+window.envoyerVersOutlook = async (titre, date) => {
     try {
         const loginResponse = await msalInstance.loginPopup({ scopes: ["Calendars.ReadWrite"] });
         const token = loginResponse.accessToken;
@@ -407,14 +418,10 @@
             body: JSON.stringify(event)
         });
 
-        if (response.ok) {
-            alert("✅ Tâche ajoutée avec succès dans ton Outlook !");
-        } else {
-            alert("❌ Erreur : Impossible d'envoyer la tâche.");
-        }
+        if (response.ok) alert("✅ Tâche envoyée sur Outlook !");
+        else alert("❌ Erreur : Impossible d'envoyer la tâche.");
     } catch (error) { 
-        console.error(error);
-        alert("⚠️ Connexion impossible. Vérifie ton code.");
+        alert("⚠️ Erreur de connexion.");
     }
 };
 
