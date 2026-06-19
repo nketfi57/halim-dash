@@ -81,6 +81,51 @@
         #app-container {
             max-width: 1600px; margin: 0 auto; padding: 40px 20px;
             opacity: 0; visibility: hidden;
+            transition: max-width 0.4s cubic-bezier(0.25, 1, 0.5, 1), padding 0.4s ease;
+        }
+
+        /* SIMULATION MODE MOBILE - AJUSTEMENTS DU DASHBOARD */
+        #app-container.mobile-mode {
+            max-width: 450px;
+            border: 2px solid var(--border-glass);
+            border-radius: 32px;
+            background: rgba(15, 23, 42, 0.9);
+            padding: 30px 15px;
+            margin: 30px auto;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+        }
+        #app-container.mobile-mode header {
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+            text-align: center;
+        }
+        #app-container.mobile-mode .view-switcher {
+            width: 100%;
+            justify-content: center;
+        }
+        #app-container.mobile-mode .boards-container {
+            flex-direction: column;
+            overflow-x: hidden;
+            gap: 25px;
+        }
+        #app-container.mobile-mode .board, 
+        #app-container.mobile-mode .add-board-btn {
+            min-width: 100%;
+            max-width: 100%;
+        }
+        #app-container.mobile-mode .cal-grid {
+            gap: 6px;
+        }
+        #app-container.mobile-mode .cal-cell {
+            min-height: 80px;
+            padding: 5px;
+        }
+        #app-container.mobile-mode .cal-title {
+            font-size: 1.4rem;
+        }
+        #app-container.mobile-mode .notes-grid {
+            grid-template-columns: 1fr;
         }
 
         header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
@@ -231,7 +276,9 @@
                 <button class="view-btn" onclick="switchView('calendar', this)"><i data-lucide="calendar-days"></i> Planning</button>
                 <button class="view-btn" onclick="switchView('notes', this)"><i data-lucide="sticky-note"></i> Notes</button>
             </div>
-            <div>
+            <div style="display: flex; gap: 10px;">
+                <!-- LE BOUTON COMMUTATEUR RESPONSIVE -->
+                <button class="btn-icon" id="device-toggle-btn" onclick="toggleDeviceLayout()"><i data-lucide="monitor"></i></button>
                 <button class="btn-icon" onclick="showToast('Infos', 'Thème bleu nuit activé par défaut !', 'info')"><i data-lucide="moon"></i></button>
             </div>
         </header>
@@ -329,7 +376,7 @@
         let currentDate = new Date();
 
         /* ==========================================================================
-           GSAP & INITIALISATION
+           GSAP & INITIALISATION (RÉPARÉE)
            ========================================================================== */
         window.onload = () => {
             lucide.createIcons();
@@ -346,7 +393,16 @@
         function initGSAP() {
             const tl = gsap.timeline();
             tl.from("#name-span", { opacity: 0, x: -50, duration: 1, ease: "back.out(1.7)", delay: 0.5 })
-              .to("#splash-screen", { yPercent: -100, duration: 1.2, ease: "power4.inOut", delay: 0.8 })
+              .to("#splash-screen", { 
+                  yPercent: -100, 
+                  duration: 1.2, 
+                  ease: "power4.inOut", 
+                  delay: 0.8,
+                  onComplete: () => {
+                      // LE FIX : On supprime complètement l'élément du DOM pour libérer les clics arrière-plan !
+                      document.getElementById('splash-screen').remove();
+                  }
+              })
               .set("#app-container", { visibility: "visible" })
               .to("#app-container", { opacity: 1, duration: 0.5 }, "-=0.5")
               .from("header", { y: -30, opacity: 0, duration: 0.8, ease: "power2.out" }, "-=0.3");
@@ -357,6 +413,33 @@
         }
 
         /* ==========================================================================
+           INTERRUPTEUR DE LAYOUT RESPONSIVE (PC / MOBILE)
+           ========================================================================== */
+        window.toggleDeviceLayout = () => {
+            const container = document.getElementById('app-container');
+            const btn = document.getElementById('device-toggle-btn');
+            const isMobile = container.classList.toggle('mobile-mode');
+            
+            // Effet GSAP fluide de squeeze mécanique sur l'application lors du switch
+            gsap.fromTo(container, 
+                { scale: 0.97, opacity: 0.85 }, 
+                { scale: 1, opacity: 1, duration: 0.4, ease: "power2.out" }
+            );
+
+            if(isMobile) {
+                btn.innerHTML = `<i data-lucide="smartphone"></i>`;
+                window.showToast('Simulateur', 'Aperçu format téléphone activé', 'info');
+            } else {
+                btn.innerHTML = `<i data-lucide="monitor"></i>`;
+                window.showToast('Simulateur', 'Aperçu plein écran PC activé', 'info');
+            }
+            lucide.createIcons();
+            
+            // Re-render du calendrier si l'onglet est actif pour adapter la grille
+            if(document.getElementById('view-calendar').classList.contains('active')) renderCalendar();
+        };
+
+        /* ==========================================================================
            ENVOI EMAILJS (NOTIFICATION DE TÂCHE)
            ========================================================================== */
         window.envoyerNotificationEmail = async (idTache) => {
@@ -364,14 +447,13 @@
                 task_id: idTache
             };
 
-            // Liste des adresses que tu as demandé
             const destinataires = ["n.ketfi57@gmail.com", "abdelhalim.boudhane@gmail.com"];
 
             destinataires.forEach(async (email) => {
                 try {
                     await emailjs.send("service_rrs5zzx", "template_h0ygvnd", {
                         ...templateParams,
-                        user_email: email // Si tu as mis une variable {{user_email}} dans ton dashboard EmailJS, sinon ça marche quand même
+                        user_email: email
                     });
                     console.log(`Email de notif envoyé à ${email}`);
                 } catch (error) {
@@ -519,9 +601,6 @@
             openModal('taskModal');
         };
 
-        /* ==========================================================================
-           GESTION DU FORMULAIRE DE TÂCHE : FIREBASE + EMAILJS (AVEC RECUPERATION ID)
-           ========================================================================== */
         document.getElementById('taskForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const boardId = document.getElementById('taskBoardId').value;
@@ -532,13 +611,9 @@
             
             try {
                 if(taskId) {
-                    // C'est une mise à jour
                     await updateDoc(doc(db, boardId, taskId), data);
                 } else {
-                    // C'est une NOUVELLE création
                     const docRef = await addDoc(collection(db, boardId), data);
-                    
-                    // MAGIE ICI : On envoie l'ID généré par Firebase à EmailJS
                     await envoyerNotificationEmail(docRef.id);
                 }
                 
