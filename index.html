@@ -50,7 +50,7 @@
         .orb {
             position: absolute; border-radius: 50%;
             background: var(--blue-main); opacity: 0.5;
-            transition: transform 0.1s ease-out; /* Pour le parallaxe */
+            transition: transform 0.1s ease-out;
         }
         .orb-1 { width: 50vw; height: 50vw; top: -10%; left: -10%; background: #1d4ed8; }
         .orb-2 { width: 40vw; height: 40vw; bottom: -10%; right: -10%; background: #3b82f6; }
@@ -100,7 +100,8 @@
             font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
             box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3); transition: 0.3s;
         }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5); }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
         
         .btn-outlook {
             background: var(--outlook); color: white; border: none; padding: 10px 20px; border-radius: 12px;
@@ -110,9 +111,10 @@
         .btn-outlook:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 120, 212, 0.5); }
 
         .btn-icon { background: rgba(59, 130, 246, 0.1); border: 1px solid var(--border-glass); color: var(--blue-main); padding: 8px; border-radius: 10px; cursor: pointer; transition: 0.3s; }
-        .btn-icon:hover { background: var(--blue-main); color: white; }
+        .btn-icon:hover:not(:disabled) { background: var(--blue-main); color: white; }
+        .btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
         .btn-icon.danger { color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
-        .btn-icon.danger:hover { background: var(--danger); color: white; }
+        .btn-icon.danger:hover:not(:disabled) { background: var(--danger); color: white; }
 
         /* ==========================================================================
            KANBAN BOARD
@@ -200,7 +202,6 @@
             background: #0f172a; border: 1px solid var(--border-glass); border-radius: 24px;
             padding: 40px; width: 100%; max-width: 500px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            /* Transform géré par GSAP maintenant */
         }
         .modal-title { font-size: 1.8rem; font-weight: 700; margin-bottom: 25px; color: var(--blue-light); }
         .form-group { margin-bottom: 20px; }
@@ -239,6 +240,9 @@
                 <button class="view-btn" onclick="switchView('notes', this)"><i data-lucide="sticky-note"></i> Notes</button>
             </div>
             <div>
+                <button class="btn-primary btn-task-sync" disabled onclick="envoyerToutVersOutlook()" style="margin-right: 15px;">
+                    <i data-lucide="send"></i> Tout envoyer sur Outlook
+                </button>
                 <button class="btn-icon" onclick="showToast('Infos', 'Thème bleu nuit activé par défaut !', 'info')"><i data-lucide="moon"></i></button>
             </div>
         </header>
@@ -270,7 +274,7 @@
             <div class="notes-grid" id="notesContainer"></div>
         </div>
 
-        <footer>Fait par Nassim -j'ai interet a etre bien payée </footer>
+        <footer>Fait par Nassim - j'ai interet a etre bien payée </footer>
     </div>
 
     <div class="modal-overlay" id="taskModal">
@@ -308,7 +312,7 @@
             <form id="noteForm">
                 <input type="hidden" id="noteId">
                 <div class="form-group"><label>Titre</label><input type="text" id="noteTitle" class="form-control" required></div>
-                <div class="form-group"><label>Contenu</label><textarea id="noteContent" class="form-control" required></textarea></div>
+                <div class="form-group"><label>Contenu</label><textarea id="noteContent" class="form-control" required style="min-height: 150px;"></textarea></div>
                 <div class="modal-actions">
                     <button type="button" class="btn-cancel" onclick="closeModal('noteModal')">Annuler</button>
                     <button type="submit" class="btn-primary">Enregistrer</button>
@@ -335,7 +339,10 @@
         let allTasks = {};
         let notesList = [];
         let currentDate = new Date();
-        let outlookEvents = []; // Stockage des events MS Graph
+        let outlookEvents = []; 
+
+        // === VARIABLES D'ÉTAT OUTLOOK ===
+        let isOutlookConnected = false;
 
         /* ==========================================================================
            GSAP & INITIALISATION
@@ -360,12 +367,10 @@
               .to("#app-container", { opacity: 1, duration: 0.5 }, "-=0.5")
               .from("header", { y: -30, opacity: 0, duration: 0.8, ease: "power2.out" }, "-=0.3");
 
-            // Animation continue des Orbes
             gsap.to(".orb-1", { x: 300, y: 100, duration: 12, repeat: -1, yoyo: true, ease: "sine.inOut" });
             gsap.to(".orb-2", { x: -200, y: -200, duration: 15, repeat: -1, yoyo: true, ease: "sine.inOut" });
             gsap.to(".orb-3", { scale: 1.2, duration: 8, repeat: -1, yoyo: true, ease: "sine.inOut" });
 
-            // EFFET PARALLAXE SOURIS (NOUVEAU)
             document.addEventListener("mousemove", (e) => {
                 const x = (e.clientX / window.innerWidth - 0.5) * 40;
                 const y = (e.clientY / window.innerHeight - 0.5) * 40;
@@ -377,8 +382,7 @@
         /* ==========================================================================
            OUTLOOK INTEGRATION (MSAL.JS)
            ========================================================================== */
-        // ATTENTION : Remplacer par ton vrai Client ID Azure pour que ça marche
-      const msalConfig = {
+        const msalConfig = {
             auth: {
                 clientId: "16ba096c-b372-44c4-b970-728ca3aeca17", 
                 authority: "https://login.microsoftonline.com/common"
@@ -387,43 +391,74 @@
 
         const msalInstance = new msal.PublicClientApplication(msalConfig);
 
-  // 1. FONCTION POUR LE BOUTON "LIER OUTLOOK"
-window.connectOutlook = async () => {
-    try {
-        await msalInstance.loginPopup({ scopes: ["Calendars.ReadWrite"] });
-        alert("✅ Connecté avec succès !");
-    } catch (error) {
-        alert("⚠️ Connexion annulée.");
-    }
-};
-
-// 2. FONCTION POUR LES BOUTONS SUR TES TÂCHES
-window.envoyerVersOutlook = async (titre, date) => {
-    try {
-        const loginResponse = await msalInstance.loginPopup({ scopes: ["Calendars.ReadWrite"] });
-        const token = loginResponse.accessToken;
-
-        const event = {
-            subject: titre,
-            start: { dateTime: date + "T09:00:00", timeZone: "Europe/Paris" },
-            end: { dateTime: date + "T10:00:00", timeZone: "Europe/Paris" }
+        // 1. BOUTON LIER OUTLOOK (Connexion)
+        window.connectOutlook = async () => {
+            try {
+                await msalInstance.loginPopup({ scopes: ["Calendars.ReadWrite"] });
+                isOutlookConnected = true;
+                
+                // Dégrise les boutons
+                const buttons = document.querySelectorAll('.btn-task-sync');
+                buttons.forEach(btn => btn.disabled = false);
+                
+                showToast("Succès", "Connecté à Outlook avec succès !", "success");
+            } catch (error) {
+                showToast("Erreur", "Connexion à Outlook annulée.", "error");
+            }
         };
 
-        const response = await fetch("https://graph.microsoft.com/v1.0/me/calendar/events", {
-            method: "POST",
-            headers: { 
-                "Authorization": `Bearer ${token}`, 
-                "Content-Type": "application/json" 
-            },
-            body: JSON.stringify(event)
-        });
+        // 2. ENVOYER UNE TÂCHE
+        window.envoyerVersOutlook = async (titre, date) => {
+            if (!isOutlookConnected) {
+                showToast("Attention", "Connecte-toi d'abord à Outlook !", "error");
+                return;
+            }
+            if (!date) {
+                showToast("Attention", "La tâche n'a pas de date !", "error");
+                return;
+            }
 
-        if (response.ok) alert("✅ Tâche envoyée sur Outlook !");
-        else alert("❌ Erreur : Impossible d'envoyer la tâche.");
-    } catch (error) { 
-        alert("⚠️ Erreur de connexion.");
-    }
-};
+            try {
+                const loginResponse = await msalInstance.acquireTokenSilent({ scopes: ["Calendars.ReadWrite"] }).catch(async () => {
+                    return await msalInstance.loginPopup({ scopes: ["Calendars.ReadWrite"] });
+                });
+                const token = loginResponse.accessToken;
+
+                const event = {
+                    subject: titre,
+                    start: { dateTime: date + "T09:00:00", timeZone: "Europe/Paris" },
+                    end: { dateTime: date + "T10:00:00", timeZone: "Europe/Paris" }
+                };
+
+                const response = await fetch("https://graph.microsoft.com/v1.0/me/calendar/events", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify(event)
+                });
+
+                if (response.ok) showToast("Succès", "Tâche envoyée sur Outlook !", "success");
+                else showToast("Erreur", "Impossible d'envoyer la tâche.", "error");
+            } catch (error) { 
+                showToast("Erreur", "Erreur de communication avec Microsoft.", "error");
+            }
+        };
+
+        // 3. TOUT ENVOYER
+        window.envoyerToutVersOutlook = async () => {
+            if (!isOutlookConnected) return;
+            
+            let count = 0;
+            for (const board of boardsList) {
+                const tasks = allTasks[board] || [];
+                for (const t of tasks) {
+                    if (t.dueDate) {
+                        await envoyerVersOutlook(t.title, t.dueDate);
+                        count++;
+                    }
+                }
+            }
+            showToast("Succès", `${count} tâches envoyées vers Outlook !`, "success");
+        };
 
         /* ==========================================================================
            UI HELPERS
@@ -448,7 +483,6 @@ window.envoyerVersOutlook = async (titre, date) => {
             if(viewId === 'calendar') renderCalendar();
         };
 
-        // NOUVELLE ANIMATION MODALE AVEC GSAP
         window.openModal = (id) => {
             const modal = document.getElementById(id);
             modal.classList.add('active');
@@ -506,6 +540,8 @@ window.envoyerVersOutlook = async (titre, date) => {
                                 <p>${t.description || ''}</p>
                                 ${t.dueDate ? `<div class="card-meta"><span><i data-lucide="clock" style="width:14px;"></i> ${t.dueDate}</span></div>` : ''}
                                 <div class="card-actions">
+                                    <button class="btn-icon btn-task-sync" disabled onclick="envoyerVersOutlook('${t.title}', '${t.dueDate}')" title="Envoyer sur Outlook"><i data-lucide="calendar-plus" style="width:14px;"></i></button>
+                                    
                                     <button class="btn-icon" onclick="editTask('${boardId}', '${t.id}')"><i data-lucide="edit-2" style="width:14px;"></i></button>
                                     <button class="btn-icon danger" onclick="deleteTask('${boardId}', '${t.id}')"><i data-lucide="x" style="width:14px;"></i></button>
                                 </div>
@@ -565,10 +601,6 @@ window.envoyerVersOutlook = async (titre, date) => {
             openModal('taskModal');
         };
 
-// AJOUTE CETTE FONCTION JUSTE AVANT LE ADD EVENT LISTENER
-      
-
-        // TON BLOC MODIFIÉ
         document.getElementById('taskForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const boardId = document.getElementById('taskBoardId').value;
@@ -579,91 +611,140 @@ window.envoyerVersOutlook = async (titre, date) => {
             try {
                 if(taskId) await updateDoc(doc(db, boardId, taskId), data);
                 else await addDoc(collection(db, boardId), data);
-                if(date) await envoyerVersOutlook(titre, date);
+                
+                // Si Outlook est connecté et qu'une date est mise, ça propose l'envoi
+                if(date && isOutlookConnected && confirm("Veux-tu aussi envoyer cette tâche sur Outlook ?")) {
+                    await envoyerVersOutlook(titre, date);
+                }
+                
                 closeModal('taskModal');
                 showToast('Succès', 'Tâche sauvegardée');
             } catch (err) { showToast('Erreur', err.message, 'error'); }
         });
-        window.deleteTask = async (b, id) => { if(confirm('Supprimer ?')) await deleteDoc(doc(db, b, id)); };
 
-        // ----------------------------------------------------------------------
-        // CALENDRIER LOGIC (AVEC OUTLOOK)
-        // ----------------------------------------------------------------------
-        window.renderCalendar = () => {
+        // RÉPARATION DE LA FONCTION COUPÉE
+        window.deleteTask = async (boardId, taskId) => {
+            if(!confirm("Supprimer cette tâche ?")) return;
+            try {
+                await deleteDoc(doc(db, boardId, taskId));
+                showToast("Succès", "Tâche supprimée");
+            } catch (e) {
+                showToast("Erreur", "Impossible de supprimer", "error");
+            }
+        };
+
+        /* ==========================================================================
+           FONCTIONS CALENDRIER ET NOTES (POUR FINALISER LE FICHIER)
+           ========================================================================== */
+        window.changeMonth = (dir) => {
+            currentDate.setMonth(currentDate.getMonth() + dir);
+            renderCalendar();
+        };
+
+        function renderCalendar() {
             const grid = document.getElementById('calGrid');
-            const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-            document.getElementById('calMonthYear').innerText = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+            const monthYear = document.getElementById('calMonthYear');
+            
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            
+            monthYear.innerText = new Date(year, month).toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
             grid.innerHTML = '';
             
-            ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].forEach(d => grid.innerHTML += `<div class="cal-day-name">${d}</div>`);
-
-            const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-            const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-            let startDay = firstDay.getDay() - 1;
-            if (startDay === -1) startDay = 6;
-
-            for(let i=0; i<startDay; i++) grid.innerHTML += `<div class="cal-cell other-month"></div>`;
-
-            const today = new Date();
-            for(let day=1; day<=lastDay.getDate(); day++) {
-                const isToday = day === today.getDate() && currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear();
-                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+            days.forEach(d => grid.innerHTML += `<div class="cal-day-name">${d}</div>`);
+            
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+            
+            for(let i = 0; i < startOffset; i++) {
+                grid.innerHTML += `<div class="cal-cell other-month"></div>`;
+            }
+            
+            for(let day = 1; day <= daysInMonth; day++) {
+                const cellDate = `${year}-${String(month+1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 
-                // Tâches Firebase
-                let dayTasks = [];
-                Object.keys(allTasks).forEach(b => dayTasks = dayTasks.concat(allTasks[b].filter(t => t.dueDate === dateStr)));
+                // Chercher les tâches pour ce jour
+                let dayTasksHTML = '';
+                boardsList.forEach(b => {
+                    const tasks = allTasks[b] || [];
+                    tasks.forEach(t => {
+                        if(t.dueDate === cellDate) {
+                            dayTasksHTML += `<div class="cal-task-item"><i data-lucide="check-circle" style="width:12px;"></i> ${t.title}</div>`;
+                        }
+                    });
+                });
 
-                // Evénements Outlook
-                let msEvents = outlookEvents.filter(e => e.start && e.start.dateTime && e.start.dateTime.startsWith(dateStr));
-
+                const isToday = new Date().toISOString().split('T')[0] === cellDate ? 'today' : '';
                 grid.innerHTML += `
-                    <div class="cal-cell ${isToday ? 'today' : ''}">
-                        <span class="cal-date">${day}</span>
-                        ${msEvents.map(e => `<div class="cal-outlook-item" title="Outlook: ${e.subject}"><i data-lucide="mail" style="width:10px;"></i> ${e.subject}</div>`).join('')}
-                        ${dayTasks.map(t => `<div class="cal-task-item"><i data-lucide="circle" style="width:10px;"></i> ${t.title}</div>`).join('')}
+                    <div class="cal-cell ${isToday}">
+                        <div class="cal-date">${day}</div>
+                        ${dayTasksHTML}
                     </div>
                 `;
             }
             lucide.createIcons();
-            gsap.from(".cal-cell", { scale: 0.9, opacity: 0, duration: 0.3, stagger: 0.01, ease: "back.out(1.5)" });
-        };
-        window.changeMonth = (dir) => { currentDate.setMonth(currentDate.getMonth() + dir); renderCalendar(); };
+        }
 
-        // ----------------------------------------------------------------------
         // NOTES
-        // ----------------------------------------------------------------------
-        window.renderNotes = () => {
-            const cont = document.getElementById('notesContainer');
-            cont.innerHTML = notesList.map(n => `
-                <div class="note-card" onclick="editNote('${n.id}')">
-                    <div class="note-header">
-                        <div class="note-title">${n.title}</div>
-                        <div class="note-date">${n.createdAt.split('T')[0]}</div>
-                    </div>
-                    <div class="note-body">${n.content}</div>
-                    <div style="margin-top:15px; text-align:right;">
-                        <button class="btn-icon danger" onclick="event.stopPropagation(); deleteNote('${n.id}')"><i data-lucide="trash"></i></button>
-                    </div>
-                </div>
-            `).join('');
-            lucide.createIcons();
-        };
-
-        window.openNoteModal = () => { document.getElementById('noteModalTitle').innerText = "Nouvelle Note"; document.getElementById('noteId').value = ""; openModal('noteModal'); };
-        window.editNote = (id) => {
-            const n = notesList.find(x => x.id === id);
-            document.getElementById('noteModalTitle').innerText = "Modifier Note";
-            document.getElementById('noteId').value = n.id; document.getElementById('noteTitle').value = n.title; document.getElementById('noteContent').value = n.content;
+        window.openNoteModal = (noteId = null) => {
+            if(noteId) {
+                const note = notesList.find(n => n.id === noteId);
+                document.getElementById('noteId').value = note.id;
+                document.getElementById('noteTitle').value = note.title;
+                document.getElementById('noteContent').value = note.content;
+                document.getElementById('noteModalTitle').innerText = "Modifier la Note";
+            } else {
+                document.getElementById('noteId').value = "";
+                document.getElementById('noteModalTitle').innerText = "Nouvelle Note";
+            }
             openModal('noteModal');
         };
+
         document.getElementById('noteForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const id = document.getElementById('noteId').value;
-            const data = { title: document.getElementById('noteTitle').value, content: document.getElementById('noteContent').value, createdAt: new Date().toISOString() };
-            if(id) await updateDoc(doc(db, 'notes', id), data); else await addDoc(collection(db, 'notes'), data);
-            closeModal('noteModal'); showToast('Succès', 'Note sauvegardée');
+            const noteId = document.getElementById('noteId').value;
+            const data = {
+                title: document.getElementById('noteTitle').value,
+                content: document.getElementById('noteContent').value,
+                createdAt: new Date().toISOString()
+            };
+            
+            try {
+                if(noteId) await updateDoc(doc(db, 'notes', noteId), data);
+                else await addDoc(collection(db, 'notes'), data);
+                closeModal('noteModal');
+                showToast("Succès", "Note sauvegardée");
+            } catch (err) {
+                showToast("Erreur", "Impossible de sauvegarder la note", "error");
+            }
         });
-        window.deleteNote = async (id) => { if(confirm('Supprimer cette note ?')) await deleteDoc(doc(db, 'notes', id)); };
+
+        window.deleteNote = async (noteId, e) => {
+            e.stopPropagation();
+            if(!confirm("Supprimer cette note ?")) return;
+            await deleteDoc(doc(db, 'notes', noteId));
+            showToast("Succès", "Note supprimée");
+        };
+
+        function renderNotes() {
+            const container = document.getElementById('notesContainer');
+            container.innerHTML = '';
+            notesList.forEach(note => {
+                container.innerHTML += `
+                    <div class="note-card" onclick="openNoteModal('${note.id}')">
+                        <div class="note-header">
+                            <div class="note-title">${note.title}</div>
+                            <button class="btn-icon danger" onclick="deleteNote('${note.id}', event)"><i data-lucide="trash-2" style="width:16px;"></i></button>
+                        </div>
+                        <div class="note-body">${note.content.replace(/\n/g, '<br>')}</div>
+                    </div>
+                `;
+            });
+            lucide.createIcons();
+        }
+
     </script>
 </body>
 </html>
