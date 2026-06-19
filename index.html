@@ -388,39 +388,42 @@
         const msalInstance = new msal.PublicClientApplication(msalConfig);
 
         window.connectOutlook = async () => {
-            if (msalConfig.auth.clientId === "METS_TON_CLIENT_ID_AZURE_ICI") {
-                showToast("Erreur Outlook", "Tu dois configurer ton Client ID Azure dans le code pour que la connexion fonctionne.", "error");
-                return;
-            }
+    // 1. Vérification du Client ID
+    if (msalConfig.auth.clientId === "METS_TON_CLIENT_ID_AZURE_ICI") {
+        showToast("Erreur", "Configure ton Client ID dans le code", "error");
+        return;
+    }
 
-            try {
-                const loginResponse = await msalInstance.loginPopup({ scopes: ["Calendars.Read"] });
-                const token = loginResponse.accessToken;
-                
-                // Fetch events from MS Graph
-                const headers = new Headers();
-                headers.append("Authorization", `Bearer ${token}`);
-                
-                // Définit la plage de dates pour juin 2026
-const start = "2026-06-01T00:00:00Z";
-const end = "2026-06-30T23:59:59Z";
+    try {
+        // 2. Connexion
+        const loginResponse = await msalInstance.loginPopup({ scopes: ["Calendars.Read"] });
+        const token = loginResponse.accessToken;
+        
+        // 3. Appel API
+        const headers = new Headers();
+        headers.append("Authorization", `Bearer ${token}`);
+        
+        const start = "2026-06-01T00:00:00Z";
+        const end = "2026-06-30T23:59:59Z";
+        const url = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${start}&endDateTime=${end}&$select=subject,start,end&$top=50`;
 
-// Utilise calendarView au lieu de events
-const url = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${start}&endDateTime=${end}&$select=subject,start,end&$top=50`;
+        const response = await fetch(url, { headers });
+        const data = await response.json();
+        
+        // 4. Log unique pour voir ce qui arrive (ignore le reste de la console)
+        console.log("--- RÉPONSE MICROSOFT ---", data);
 
-const response = await fetch(url, { headers });
-const data = await response.json();
-
-if(data.value) {
-    outlookEvents = data.value;
-    showToast("Outlook Connecté", "Réunions du mois de juin récupérées !");
-    renderCalendar();
-}
-            } catch (error) {
-                console.error(error);
-                showToast("Erreur de connexion", "La connexion Microsoft a échoué.", "error");
-            }
-        };
+        if(data.value) {
+            outlookEvents = data.value;
+            showToast("Succès", `Réunions trouvées : ${data.value.length}`);
+            renderCalendar();
+        } else {
+            console.log("Attention : data.value n'existe pas.", data);
+        }
+    } catch (error) {
+        console.error("ERREUR:", error);
+    }
+};
 
         /* ==========================================================================
            UI HELPERS
