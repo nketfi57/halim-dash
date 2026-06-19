@@ -387,60 +387,34 @@
 
         const msalInstance = new msal.PublicClientApplication(msalConfig);
 
-        window.envoyerVersOutlook = async (titre, date) => {
-            try {
-                const loginResponse = await msalInstance.loginPopup({ scopes: ["Calendars.ReadWrite"] });
-                const token = loginResponse.accessToken;
-                const event = {
-                    subject: titre,
-                    start: { dateTime: date + "T09:00:00", timeZone: "Europe/Paris" },
-                    end: { dateTime: date + "T10:00:00", timeZone: "Europe/Paris" }
-                };
-                const response = await fetch("https://graph.microsoft.com/v1.0/me/calendar/events", {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-                    body: JSON.stringify(event)
-                });
-                if (response.ok) console.log("Outlook: Tâche ajoutée");
-                else console.error("Erreur Outlook:", await response.json());
-            } catch (error) { console.error("Erreur connexion Outlook:", error); }
+   window.envoyerVersOutlook = async (titre, date) => {
+    try {
+        const loginResponse = await msalInstance.loginPopup({ scopes: ["Calendars.ReadWrite"] });
+        const token = loginResponse.accessToken;
+
+        const event = {
+            subject: titre,
+            start: { dateTime: date + "T09:00:00", timeZone: "Europe/Paris" },
+            end: { dateTime: date + "T10:00:00", timeZone: "Europe/Paris" }
         };
 
-        window.connectOutlook = async () => {
-    // 1. Vérification du Client ID
-    if (msalConfig.auth.clientId === "METS_TON_CLIENT_ID_AZURE_ICI") {
-        showToast("Erreur", "Configure ton Client ID dans le code", "error");
-        return;
-    }
+        const response = await fetch("https://graph.microsoft.com/v1.0/me/calendar/events", {
+            method: "POST",
+            headers: { 
+                "Authorization": `Bearer ${token}`, 
+                "Content-Type": "application/json" 
+            },
+            body: JSON.stringify(event)
+        });
 
-    try {
-        // 2. Connexion
-        const loginResponse = await msalInstance.loginPopup({ scopes: ["Calendars.Read"] });
-        const token = loginResponse.accessToken;
-        
-        // 3. Appel API
-        const headers = new Headers();
-        headers.append("Authorization", `Bearer ${token}`);
-        
-        const start = "2026-06-01T00:00:00Z";
-        const end = "2026-06-30T23:59:59Z";
-        const url = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${start}&endDateTime=${end}&$select=subject,start,end&$top=50`;
-
-        const response = await fetch(url, { headers });
-        const data = await response.json();
-        
-        // 4. Log unique pour voir ce qui arrive (ignore le reste de la console)
-        console.log("--- RÉPONSE MICROSOFT ---", data);
-
-        if(data.value) {
-            outlookEvents = data.value;
-            showToast("Succès", `Réunions trouvées : ${data.value.length}`);
-            renderCalendar();
+        if (response.ok) {
+            alert("✅ Tâche ajoutée avec succès dans ton Outlook !");
         } else {
-            console.log("Attention : data.value n'existe pas.", data);
+            alert("❌ Erreur : Impossible d'envoyer la tâche.");
         }
-    } catch (error) {
-        console.error("ERREUR:", error);
+    } catch (error) { 
+        console.error(error);
+        alert("⚠️ Connexion impossible. Vérifie ton code.");
     }
 };
 
