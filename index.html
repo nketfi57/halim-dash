@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark-mode">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Halim</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/TextPlugin.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://alcdn.msauth.net/browser/2.30.0/js/msal-browser.min.js"></script>
+
+    <style>
+        /* ==========================================================================
+           VARIABLES & RESET
+           ========================================================================== */
+        :root {
+            --blue-light: #60a5fa;
+            --blue-main: #3b82f6;
+            --blue-dark: #1d4ed8;
+            --bg-deep: #020617;
+            --bg-glass: rgba(15, 23, 42, 0.75);
+            --border-glass: rgba(59, 130, 246, 0.3);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --danger: #ef4444;
+            --success: #10b981;
+            --outlook: #0078d4;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ==========================================================================
+           BACKGROUND & SPLASH SCREEN
+           ========================================================================== */
+        .mesh-bg {
+            position: fixed; inset: 0; z-index: -1;
+            overflow: hidden; filter: blur(100px); opacity: 0.6;
+        }
+        .orb {
+            position: absolute; border-radius: 50%;
+            background: var(--blue-main); opacity: 0.5;
+            transition: transform 0.1s ease-out; /* Pour le parallaxe */
+        }
+        .orb-1 { width: 50vw; height: 50vw; top: -10%; left: -10%; background: #1d4ed8; }
+        .orb-2 { width: 40vw; height: 40vw; bottom: -10%; right: -10%; background: #3b82f6; }
+        .orb-3 { width: 30vw; height: 30vw; top: 40%; left: 40%; background: #60a5fa; }
+
+        #splash-screen {
+            position: fixed; inset: 0; background: var(--bg-deep);
+            display: flex; justify-content: center; align-items: center; z-index: 99999;
+        }
+        .welcome-text {
+            font-family: 'Playfair Display', serif;
+            font-size: 5rem;
+            color: var(--text-main);
+            font-weight: 700;
+        }
+        .text-blue { color: var(--blue-main); }
+
+        /* ==========================================================================
+           LAYOUT & COMPONENTS
+           ========================================================================== */
+        #app-container {
+            max-width: 1600px; margin: 0 auto; padding: 40px 20px;
+            opacity: 0; visibility: hidden;
+        }
+
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+        .app-title { font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 700; color: var(--blue-main); }
+        
+        .view-switcher {
+            display: flex; gap: 10px; background: var(--bg-glass); backdrop-filter: blur(20px);
+            padding: 8px; border-radius: 20px; border: 1px solid var(--border-glass);
+        }
+        .view-btn {
+            display: flex; align-items: center; gap: 8px; padding: 10px 24px;
+            background: transparent; border: none; color: var(--text-muted);
+            font-weight: 600; border-radius: 14px; cursor: pointer; transition: 0.3s;
+        }
+        .view-btn.active { background: var(--blue-main); color: white; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
+        .view-btn:hover:not(.active) { color: var(--text-main); background: rgba(255,255,255,0.05); }
+
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--blue-main), var(--blue-dark));
+            color: white; border: none; padding: 12px 24px; border-radius: 12px;
+            font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3); transition: 0.3s;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5); }
+        
+        .btn-outlook {
+            background: var(--outlook); color: white; border: none; padding: 10px 20px; border-radius: 12px;
+            font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 15px rgba(0, 120, 212, 0.3); transition: 0.3s;
+        }
+        .btn-outlook:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 120, 212, 0.5); }
+
+        .btn-icon { background: rgba(59, 130, 246, 0.1); border: 1px solid var(--border-glass); color: var(--blue-main); padding: 8px; border-radius: 10px; cursor: pointer; transition: 0.3s; }
+        .btn-icon:hover { background: var(--blue-main); color: white; }
+        .btn-icon.danger { color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
+        .btn-icon.danger:hover { background: var(--danger); color: white; }
+
+        /* ==========================================================================
+           KANBAN BOARD
+           ========================================================================== */
+        .boards-container { display: flex; gap: 30px; overflow-x: auto; padding-bottom: 20px; min-height: 70vh; }
+        .boards-container::-webkit-scrollbar { height: 8px; }
+        .boards-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
+        .boards-container::-webkit-scrollbar-thumb { background: var(--blue-main); border-radius: 10px; }
+
+        .board {
+            min-width: 380px; max-width: 380px; background: var(--bg-glass); backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass); border-radius: 24px; padding: 25px; display: flex; flex-direction: column;
+        }
+        .board-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border-glass); }
+        .board-title { font-size: 1.2rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .board-badge { width: 12px; height: 12px; border-radius: 50%; background: var(--blue-main); box-shadow: 0 0 10px var(--blue-main); }
+        
+        .cards { display: flex; flex-direction: column; gap: 15px; flex: 1; }
+        .task-card {
+            background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255,255,255,0.05);
+            border-left: 4px solid var(--blue-main); border-radius: 16px; padding: 20px;
+            cursor: pointer; position: relative; overflow: hidden;
+        }
+        .task-card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+        .task-card p { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 15px; }
+        .card-meta { display: flex; gap: 15px; font-size: 0.8rem; color: var(--text-muted); }
+        .card-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; }
+
+        .add-board-btn {
+            min-width: 380px; border: 2px dashed var(--border-glass); border-radius: 24px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px;
+            color: var(--blue-main); font-weight: 600; cursor: pointer; background: rgba(59, 130, 246, 0.05); transition: 0.3s;
+        }
+        .add-board-btn:hover { background: rgba(59, 130, 246, 0.1); border-color: var(--blue-main); }
+
+        /* ==========================================================================
+           CALENDRIER
+           ========================================================================== */
+        .calendar-wrapper { background: var(--bg-glass); backdrop-filter: blur(20px); border: 1px solid var(--border-glass); border-radius: 24px; padding: 40px; }
+        .cal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .cal-title { font-size: 2rem; font-weight: 700; color: var(--blue-light); }
+        .cal-nav { display: flex; gap: 10px; align-items: center; }
+        
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 15px; }
+        .cal-day-name { text-align: center; font-weight: 700; color: var(--text-muted); padding-bottom: 10px; border-bottom: 1px solid var(--border-glass); }
+        .cal-cell {
+            background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-glass); border-radius: 16px;
+            min-height: 120px; padding: 15px; transition: 0.3s;
+        }
+        .cal-cell:hover { border-color: var(--blue-main); background: rgba(30, 41, 59, 0.9); }
+        .cal-date { font-weight: 700; margin-bottom: 10px; display: inline-block; }
+        .cal-cell.today .cal-date { background: var(--blue-main); color: white; padding: 2px 10px; border-radius: 10px; }
+        .cal-cell.other-month { opacity: 0.3; pointer-events: none; }
+        
+        .cal-task-item {
+            background: rgba(59, 130, 246, 0.2); border-left: 3px solid var(--blue-main);
+            color: var(--blue-light); font-size: 0.75rem; padding: 6px 8px; border-radius: 6px;
+            margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .cal-outlook-item {
+            background: rgba(0, 120, 212, 0.2); border-left: 3px solid var(--outlook);
+            color: #60a5fa; font-size: 0.75rem; padding: 6px 8px; border-radius: 6px;
+            margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            display: flex; align-items: center; gap: 5px;
+        }
+
+        /* ==========================================================================
+           NOTES & MODALS
+           ========================================================================== */
+        .notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; margin-top: 30px; }
+        .note-card { background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: 20px; padding: 25px; transition: 0.3s; cursor: pointer; }
+        .note-card:hover { transform: translateY(-5px); border-color: var(--blue-light); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .note-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        .note-title { font-size: 1.25rem; font-weight: 700; color: var(--blue-light); }
+        .note-body { font-size: 0.95rem; line-height: 1.6; opacity: 0.8; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(2, 6, 23, 0.8); backdrop-filter: blur(10px);
+            display: flex; justify-content: center; align-items: center; z-index: 9999;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s;
+        }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        .modal-box {
+            background: #0f172a; border: 1px solid var(--border-glass); border-radius: 24px;
+            padding: 40px; width: 100%; max-width: 500px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            /* Transform géré par GSAP maintenant */
+        }
+        .modal-title { font-size: 1.8rem; font-weight: 700; margin-bottom: 25px; color: var(--blue-light); }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-muted); }
+        .form-control { width: 100%; padding: 12px 16px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 12px; color: white; font-family: inherit; }
+        .form-control:focus { outline: none; border-color: var(--blue-main); }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 15px; margin-top: 30px; }
+        .btn-cancel { background: transparent; color: var(--text-muted); border: 1px solid var(--border-glass); padding: 12px 24px; border-radius: 12px; cursor: pointer; }
+        
+        #toast-container { position: fixed; bottom: 30px; right: 30px; display: flex; flex-direction: column; gap: 10px; z-index: 10000; }
+        .toast { background: var(--bg-glass); backdrop-filter: blur(10px); border-left: 4px solid var(--blue-main); padding: 15px 20px; border-radius: 12px; display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); font-weight: 500; }
+        footer { text-align: center; padding: 30px; color: var(--text-muted); font-size: 0.9rem; margin-top: 50px; }
+    </style>
+</head>
+<body>
+
+    <div id="splash-screen">
+        <h1 class="welcome-text">Bienvenue <span class="text-blue" id="name-span">Halim</span></h1>
+    </div>
+
+    <div class="mesh-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <div id="app-container">
+        
+        <header>
+            <div class="app-title">Dashboard.</div>
+            <div class="view-switcher">
+                <button class="view-btn active" onclick="switchView('board', this)"><i data-lucide="layout-dashboard"></i> Projets</button>
+                <button class="view-btn" onclick="switchView('calendar', this)"><i data-lucide="calendar-days"></i> Planning</button>
+                <button class="view-btn" onclick="switchView('notes', this)"><i data-lucide="sticky-note"></i> Notes</button>
+            </div>
+            <div>
+                <button class="btn-icon" onclick="showToast('Infos', 'Thème bleu nuit activé par défaut !', 'info')"><i data-lucide="moon"></i></button>
+            </div>
+        </header>
+
+        <div id="view-board" class="view-section active">
+            <div class="boards-container" id="boardsContainer"></div>
+        </div>
+
+        <div id="view-calendar" class="view-section">
+            <div class="calendar-wrapper">
+                <div class="cal-header">
+                    <h2 class="cal-title" id="calMonthYear">Juin 2026</h2>
+                    <div class="cal-nav">
+                        <button class="btn-outlook" onclick="connectOutlook()"><i data-lucide="mail"></i> Lier Outlook</button>
+                        <div style="width: 20px;"></div>
+                        <button class="btn-icon" onclick="changeMonth(-1)"><i data-lucide="chevron-left"></i></button>
+                        <button class="btn-icon" onclick="changeMonth(1)"><i data-lucide="chevron-right"></i></button>
+                    </div>
+                </div>
+                <div class="cal-grid" id="calGrid"></div>
+            </div>
+        </div>
+
+        <div id="view-notes" class="view-section">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="font-size:2rem; font-weight:700;">Espace Notes</h2>
+                <button class="btn-primary" onclick="openNoteModal()"><i data-lucide="plus"></i> Nouvelle Note</button>
+            </div>
+            <div class="notes-grid" id="notesContainer"></div>
+        </div>
+
+        <footer>Fait par Nassim -j'ai interet a etre bien payée </footer>
+    </div>
+
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal-box">
+            <h2 class="modal-title" id="taskModalTitle">Nouvelle Tâche</h2>
+            <form id="taskForm">
+                <input type="hidden" id="taskBoardId"><input type="hidden" id="taskId">
+                <div class="form-group"><label>Titre</label><input type="text" id="taskTitle" class="form-control" required></div>
+                <div class="form-group"><label>Description</label><textarea id="taskDesc" class="form-control"></textarea></div>
+                <div class="form-group"><label>Date limite</label><input type="date" id="taskDate" class="form-control"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" onclick="closeModal('taskModal')">Annuler</button>
+                    <button type="submit" class="btn-primary">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="boardModal">
+        <div class="modal-box">
+            <h2 class="modal-title">Nouvelle Colonne</h2>
+            <form id="boardForm">
+                <div class="form-group"><label>Nom de la colonne</label><input type="text" id="boardName" class="form-control" required></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" onclick="closeModal('boardModal')">Annuler</button>
+                    <button type="submit" class="btn-primary">Créer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="noteModal">
+        <div class="modal-box" style="max-width:700px;">
+            <h2 class="modal-title" id="noteModalTitle">Nouvelle Note</h2>
+            <form id="noteForm">
+                <input type="hidden" id="noteId">
+                <div class="form-group"><label>Titre</label><input type="text" id="noteTitle" class="form-control" required></div>
+                <div class="form-group"><label>Contenu</label><textarea id="noteContent" class="form-control" required></textarea></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" onclick="closeModal('noteModal')">Annuler</button>
+                    <button type="submit" class="btn-primary">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTU5sxQl38nFGMJ_dOVcm6wTqfgdDN3jI",
+            authDomain: "cyrielle-trell.firebaseapp.com",
+            projectId: "cyrielle-trell",
+            storageBucket: "cyrielle-trell.firebasestorage.app",
+            messagingSenderId: "52211982668",
+            appId: "1:52211982668:web:0859414c6c92b7fe3defe9"
+        };
+
+        let db;
+        let boardsList = ['pro', 'perso', 'urgent'];
+        let allTasks = {};
+        let notesList = [];
+        let currentDate = new Date();
+        let outlookEvents = []; // Stockage des events MS Graph
+
+        /* ==========================================================================
+           GSAP & INITIALISATION
+           ========================================================================== */
+        window.onload = () => {
+            lucide.createIcons();
+            initGSAP();
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                loadData();
+            } catch (e) {
+                window.showToast("Erreur", "Connexion DB impossible.", "error");
+            }
+        };
+
+        function initGSAP() {
+            const tl = gsap.timeline();
+            tl.from("#name-span", { opacity: 0, x: -50, duration: 1, ease: "back.out(1.7)", delay: 0.5 })
+              .to("#splash-screen", { yPercent: -100, duration: 1.2, ease: "power4.inOut", delay: 0.8 })
+              .set("#app-container", { visibility: "visible" })
+              .to("#app-container", { opacity: 1, duration: 0.5 }, "-=0.5")
+              .from("header", { y: -30, opacity: 0, duration: 0.8, ease: "power2.out" }, "-=0.3");
+
+            // Animation continue des Orbes
+            gsap.to(".orb-1", { x: 300, y: 100, duration: 12, repeat: -1, yoyo: true, ease: "sine.inOut" });
+            gsap.to(".orb-2", { x: -200, y: -200, duration: 15, repeat: -1, yoyo: true, ease: "sine.inOut" });
+            gsap.to(".orb-3", { scale: 1.2, duration: 8, repeat: -1, yoyo: true, ease: "sine.inOut" });
+
+            // EFFET PARALLAXE SOURIS (NOUVEAU)
+            document.addEventListener("mousemove", (e) => {
+                const x = (e.clientX / window.innerWidth - 0.5) * 40;
+                const y = (e.clientY / window.innerHeight - 0.5) * 40;
+                gsap.to(".orb-1", { x: `+=${x}`, y: `+=${y}`, duration: 1, ease: "power2.out" });
+                gsap.to(".orb-2", { x: `+=${-x}`, y: `+=${-y}`, duration: 1, ease: "power2.out" });
+            });
+        }
+
+        /* ==========================================================================
+           OUTLOOK INTEGRATION (MSAL.JS)
+           ========================================================================== */
+        // ATTENTION : Remplacer par ton vrai Client ID Azure pour que ça marche
+       const msalConfig = {
+    auth: {
+        // Voici ton ID tout propre :
+        clientId: "16ba096c-b372-44c4-b970-728ca3aeca17", 
+        authority: "https://login.microsoftonline.com/common"
+    }
+};
+        const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+        window.connectOutlook = async () => {
+            if (msalConfig.auth.clientId === "METS_TON_CLIENT_ID_AZURE_ICI") {
+                showToast("Erreur Outlook", "Tu dois configurer ton Client ID Azure dans le code pour que la connexion fonctionne.", "error");
+                return;
+            }
+
+            try {
+                const loginResponse = await msalInstance.loginPopup({ scopes: ["Calendars.Read"] });
+                const token = loginResponse.accessToken;
+                
+                // Fetch events from MS Graph
+                const headers = new Headers();
+                headers.append("Authorization", `Bearer ${token}`);
+                
+                const response = await fetch("https://graph.microsoft.com/v1.0/me/calendar/events?$select=subject,start,end&$top=50", { headers });
+                const data = await response.json();
+                
+                if(data.value) {
+                    outlookEvents = data.value;
+                    showToast("Outlook Connecté", "Vos réunions ont été synchronisées !");
+                    renderCalendar();
+                }
+            } catch (error) {
+                console.error(error);
+                showToast("Erreur de connexion", "La connexion Microsoft a échoué.", "error");
+            }
+        };
+
+        /* ==========================================================================
+           UI HELPERS
+           ========================================================================== */
+        window.showToast = (title, msg, type='success') => {
+            const cont = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `<i data-lucide="${type==='error'?'alert-circle':'check-circle'}"></i> <div><strong>${title}</strong><br><span style="font-size:0.8rem">${msg}</span></div>`;
+            cont.appendChild(toast);
+            lucide.createIcons();
+            gsap.from(toast, { x: 100, opacity: 0, duration: 0.5, ease: "back.out(1.5)" });
+            setTimeout(() => { gsap.to(toast, { x: 100, opacity: 0, duration: 0.4, onComplete: () => toast.remove() }); }, 4000);
+        };
+
+        window.switchView = (viewId, btn) => {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.view-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(`view-${viewId}`).classList.add('active');
+            btn.classList.add('active');
+            gsap.from(`#view-${viewId}`, { opacity: 0, y: 30, duration: 0.5, ease: "power2.out" });
+            if(viewId === 'calendar') renderCalendar();
+        };
+
+        // NOUVELLE ANIMATION MODALE AVEC GSAP
+        window.openModal = (id) => {
+            const modal = document.getElementById(id);
+            modal.classList.add('active');
+            gsap.fromTo(modal.querySelector('.modal-box'), 
+                { scale: 0.8, opacity: 0, y: 50 }, 
+                { scale: 1, opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" }
+            );
+        };
+        window.closeModal = (id) => {
+            const modal = document.getElementById(id);
+            gsap.to(modal.querySelector('.modal-box'), {
+                scale: 0.8, opacity: 0, y: 50, duration: 0.3, ease: "power2.in",
+                onComplete: () => {
+                    modal.classList.remove('active');
+                    document.querySelector(`#${id} form`).reset();
+                }
+            });
+        };
+
+        /* ==========================================================================
+           FIREBASE DATA (Boards, Tasks, Notes)
+           ========================================================================== */
+        function loadData() {
+            const saved = localStorage.getItem('halimBoards');
+            if(saved) boardsList = JSON.parse(saved);
+            boardsList.forEach(board => {
+                onSnapshot(query(collection(db, board), orderBy('createdAt', 'desc')), (snap) => {
+                    allTasks[board] = snap.docs.map(d => ({ id: d.id, ...d.data(), board }));
+                    buildBoardsUI();
+                    if(document.getElementById('view-calendar').classList.contains('active')) renderCalendar();
+                });
+            });
+            onSnapshot(query(collection(db, 'notes'), orderBy('createdAt', 'desc')), (snap) => {
+                notesList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderNotes();
+            });
+        }
+
+        function buildBoardsUI() {
+            const container = document.getElementById('boardsContainer');
+            container.innerHTML = '';
+            boardsList.forEach(boardId => {
+                const tasks = allTasks[boardId] || [];
+                const boardDiv = document.createElement('div');
+                boardDiv.className = 'board';
+                boardDiv.innerHTML = `
+                    <div class="board-header">
+                        <div class="board-title"><div class="board-badge"></div>${boardId.toUpperCase()}</div>
+                        <button class="btn-icon danger" onclick="deleteBoard('${boardId}')"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
+                    </div>
+                    <div class="cards">
+                        ${tasks.map(t => `
+                            <div class="task-card">
+                                <h3>${t.title}</h3>
+                                <p>${t.description || ''}</p>
+                                ${t.dueDate ? `<div class="card-meta"><span><i data-lucide="clock" style="width:14px;"></i> ${t.dueDate}</span></div>` : ''}
+                                <div class="card-actions">
+                                    <button class="btn-icon" onclick="editTask('${boardId}', '${t.id}')"><i data-lucide="edit-2" style="width:14px;"></i></button>
+                                    <button class="btn-icon danger" onclick="deleteTask('${boardId}', '${t.id}')"><i data-lucide="x" style="width:14px;"></i></button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button class="btn-primary" style="margin-top:15px; width:100%; justify-content:center;" onclick="openTaskModal('${boardId}')">
+                        <i data-lucide="plus"></i> Ajouter
+                    </button>
+                `;
+                container.appendChild(boardDiv);
+            });
+            container.innerHTML += `<div class="add-board-btn" onclick="openModal('boardModal')"><i data-lucide="plus-circle" style="width:40px;height:40px;"></i><span>Nouvelle Colonne</span></div>`;
+            lucide.createIcons();
+        }
+
+        document.getElementById('boardForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('boardName').value.trim().toLowerCase().replace(/\s+/g, '-');
+            if(!name || boardsList.includes(name)) return;
+            boardsList.push(name);
+            localStorage.setItem('halimBoards', JSON.stringify(boardsList));
+            onSnapshot(query(collection(db, name), orderBy('createdAt', 'desc')), (snap) => {
+                allTasks[name] = snap.docs.map(d => ({ id: d.id, ...d.data(), board: name }));
+                buildBoardsUI();
+            });
+            closeModal('boardModal');
+            showToast('Succès', 'Colonne ajoutée');
+        });
+
+        window.deleteBoard = async (boardId) => {
+            if(!confirm('Supprimer cette colonne et ses tâches ?')) return;
+            const batch = writeBatch(db);
+            (allTasks[boardId]||[]).forEach(t => batch.delete(doc(db, boardId, t.id)));
+            await batch.commit();
+            boardsList = boardsList.filter(b => b !== boardId);
+            localStorage.setItem('halimBoards', JSON.stringify(boardsList));
+            delete allTasks[boardId];
+            buildBoardsUI();
+        };
+
+        window.openTaskModal = (boardId) => {
+            document.getElementById('taskModalTitle').innerText = "Nouvelle Tâche";
+            document.getElementById('taskBoardId').value = boardId;
+            document.getElementById('taskId').value = "";
+            openModal('taskModal');
+        };
+
+        window.editTask = (boardId, taskId) => {
+            const task = allTasks[boardId].find(t => t.id === taskId);
+            document.getElementById('taskModalTitle').innerText = "Modifier Tâche";
+            document.getElementById('taskBoardId').value = boardId;
+            document.getElementById('taskId').value = task.id;
+            document.getElementById('taskTitle').value = task.title;
+            document.getElementById('taskDesc').value = task.description || '';
+            document.getElementById('taskDate').value = task.dueDate || '';
+            openModal('taskModal');
+        };
+
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const boardId = document.getElementById('taskBoardId').value;
+            const taskId = document.getElementById('taskId').value;
+            const data = { title: document.getElementById('taskTitle').value, description: document.getElementById('taskDesc').value, dueDate: document.getElementById('taskDate').value, createdAt: new Date().toISOString() };
+            try {
+                if(taskId) await updateDoc(doc(db, boardId, taskId), data);
+                else await addDoc(collection(db, boardId), data);
+                closeModal('taskModal');
+                showToast('Succès', 'Tâche sauvegardée');
+            } catch (err) { showToast('Erreur', err.message, 'error'); }
+        });
+
+        window.deleteTask = async (b, id) => { if(confirm('Supprimer ?')) await deleteDoc(doc(db, b, id)); };
+
+        // ----------------------------------------------------------------------
+        // CALENDRIER LOGIC (AVEC OUTLOOK)
+        // ----------------------------------------------------------------------
+        window.renderCalendar = () => {
+            const grid = document.getElementById('calGrid');
+            const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+            document.getElementById('calMonthYear').innerText = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+            grid.innerHTML = '';
+            
+            ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].forEach(d => grid.innerHTML += `<div class="cal-day-name">${d}</div>`);
+
+            const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+            const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+            let startDay = firstDay.getDay() - 1;
+            if (startDay === -1) startDay = 6;
+
+            for(let i=0; i<startDay; i++) grid.innerHTML += `<div class="cal-cell other-month"></div>`;
+
+            const today = new Date();
+            for(let day=1; day<=lastDay.getDate(); day++) {
+                const isToday = day === today.getDate() && currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear();
+                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                
+                // Tâches Firebase
+                let dayTasks = [];
+                Object.keys(allTasks).forEach(b => dayTasks = dayTasks.concat(allTasks[b].filter(t => t.dueDate === dateStr)));
+
+                // Evénements Outlook
+                let msEvents = outlookEvents.filter(e => e.start && e.start.dateTime && e.start.dateTime.startsWith(dateStr));
+
+                grid.innerHTML += `
+                    <div class="cal-cell ${isToday ? 'today' : ''}">
+                        <span class="cal-date">${day}</span>
+                        ${msEvents.map(e => `<div class="cal-outlook-item" title="Outlook: ${e.subject}"><i data-lucide="mail" style="width:10px;"></i> ${e.subject}</div>`).join('')}
+                        ${dayTasks.map(t => `<div class="cal-task-item"><i data-lucide="circle" style="width:10px;"></i> ${t.title}</div>`).join('')}
+                    </div>
+                `;
+            }
+            lucide.createIcons();
+            gsap.from(".cal-cell", { scale: 0.9, opacity: 0, duration: 0.3, stagger: 0.01, ease: "back.out(1.5)" });
+        };
+        window.changeMonth = (dir) => { currentDate.setMonth(currentDate.getMonth() + dir); renderCalendar(); };
+
+        // ----------------------------------------------------------------------
+        // NOTES
+        // ----------------------------------------------------------------------
+        window.renderNotes = () => {
+            const cont = document.getElementById('notesContainer');
+            cont.innerHTML = notesList.map(n => `
+                <div class="note-card" onclick="editNote('${n.id}')">
+                    <div class="note-header">
+                        <div class="note-title">${n.title}</div>
+                        <div class="note-date">${n.createdAt.split('T')[0]}</div>
+                    </div>
+                    <div class="note-body">${n.content}</div>
+                    <div style="margin-top:15px; text-align:right;">
+                        <button class="btn-icon danger" onclick="event.stopPropagation(); deleteNote('${n.id}')"><i data-lucide="trash"></i></button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        };
+
+        window.openNoteModal = () => { document.getElementById('noteModalTitle').innerText = "Nouvelle Note"; document.getElementById('noteId').value = ""; openModal('noteModal'); };
+        window.editNote = (id) => {
+            const n = notesList.find(x => x.id === id);
+            document.getElementById('noteModalTitle').innerText = "Modifier Note";
+            document.getElementById('noteId').value = n.id; document.getElementById('noteTitle').value = n.title; document.getElementById('noteContent').value = n.content;
+            openModal('noteModal');
+        };
+        document.getElementById('noteForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('noteId').value;
+            const data = { title: document.getElementById('noteTitle').value, content: document.getElementById('noteContent').value, createdAt: new Date().toISOString() };
+            if(id) await updateDoc(doc(db, 'notes', id), data); else await addDoc(collection(db, 'notes'), data);
+            closeModal('noteModal'); showToast('Succès', 'Note sauvegardée');
+        });
+        window.deleteNote = async (id) => { if(confirm('Supprimer cette note ?')) await deleteDoc(doc(db, 'notes', id)); };
+    </script>
+</body>
+</html>
