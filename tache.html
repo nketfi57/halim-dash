@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard // Aperçu Tâche</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/TextPlugin.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --crimson: #ff2a2a;
+            --crimson-glow: rgba(255, 42, 42, 0.4);
+            --dark-base: #050101;
+            --card-bg: rgba(18, 10, 10, 0.75);
+            --border-color: rgba(255, 42, 42, 0.2);
+            --text-white: #fffdfd;
+            --text-muted: #a69999;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--dark-base);
+            color: var(--text-white);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 1500px; /* Crucial pour la parallaxe 3D de la carte */
+        }
+
+        /* Fond de brume et particules animées */
+        .bg-glow-container { position: fixed; inset: 0; z-index: -1; overflow: hidden; filter: blur(140px); opacity: 0.75; }
+        .glow-orb { position: absolute; border-radius: 50%; background: var(--crimson); }
+        .orb-primary { width: 55vw; height: 55vw; top: -15%; left: -10%; background: #6b0404; }
+        .orb-secondary { width: 45vw; height: 45vw; bottom: -15%; right: -10%; }
+        
+        /* Particules dynamiques discrètes */
+        .particle { position: absolute; background: var(--crimson); border-radius: 50%; pointer-events: none; opacity: 0; }
+
+        /* Écran d'intro / Loader */
+        #loading-overlay {
+            position: fixed; inset: 0; background: var(--dark-base);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 99999; gap: 25px;
+        }
+        .scramble-title { font-size: 1.8rem; font-weight: 800; letter-spacing: 0.3em; color: var(--text-white); }
+        .progress-wrapper { width: 250px; height: 3px; background: rgba(255,255,255,0.03); border-radius: 10px; overflow: hidden; position: relative; }
+        .progress-bar { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: var(--crimson); box-shadow: 0 0 20px var(--crimson); }
+
+        /* Conteneur principal interactif */
+        .tilt-wrapper { transform-style: preserve-3d; display: flex; justify-content: center; align-items: center; }
+        
+        #task-card {
+            width: 100%; max-width: 580px; padding: 50px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 28px;
+            box-shadow: 0 40px 90px rgba(0, 0, 0, 0.9), inset 0 0 40px rgba(255, 42, 42, 0.02);
+            backdrop-filter: blur(40px);
+            z-index: 10;
+            opacity: 0;
+            transform-style: preserve-3d;
+        }
+
+        .status-badge {
+            font-size: 0.75rem; font-weight: 700; color: var(--crimson); letter-spacing: 0.2em; text-transform: uppercase;
+            margin-bottom: 25px; display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(255, 42, 42, 0.08); padding: 6px 14px; border-radius: 20px; border: 1px solid rgba(255, 42, 42, 0.15);
+        }
+        .status-badge span { width: 6px; height: 6px; background: var(--crimson); border-radius: 50%; box-shadow: 0 0 8px var(--crimson); }
+
+        h1#task-title {
+            font-size: 2.8rem; font-weight: 800; line-height: 1.15; margin-bottom: 20px;
+            letter-spacing: -0.02em; color: #ffffff; transform: translateZ(40px); /* Sort de la carte en 3D */
+        }
+
+        p#task-desc {
+            font-size: 1.05rem; line-height: 1.7; color: var(--text-muted);
+            margin-bottom: 35px; border-left: 2px solid var(--crimson); padding-left: 20px;
+            transform: translateZ(25px);
+        }
+
+        .info-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+            border-top: 1px solid rgba(255, 42, 42, 0.1); padding-top: 25px; margin-bottom: 35px;
+            transform: translateZ(20px);
+        }
+        .info-node { display: flex; flex-direction: column; gap: 6px; }
+        .node-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--crimson); font-weight: 700; }
+        .node-value { font-size: 0.95rem; font-weight: 600; color: var(--text-white); display: flex; align-items: center; gap: 8px; }
+
+        .close-btn {
+            width: 100%; background: linear-gradient(135deg, #5c0505, #240202);
+            border: 1px solid var(--crimson); color: var(--text-white);
+            padding: 16px; border-radius: 14px; font-weight: 700; font-size: 0.9rem;
+            letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer;
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+            box-shadow: 0 10px 25px rgba(255, 42, 42, 0.1); transform: translateZ(30px);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-glow-container" id="glowContainer">
+        <div class="glow-orb orb-primary"></div>
+        <div class="glow-orb orb-secondary"></div>
+    </div>
+
+    <div id="loading-overlay">
+        <div class="scramble-title" id="scrambleTxt">CHARGEMENT_</div>
+        <div class="progress-wrapper">
+            <div class="progress-bar" id="pBar"></div>
+        </div>
+    </div>
+
+    <div class="tilt-wrapper" id="tiltContainer">
+        <div id="task-card">
+            <div class="status-badge"><span></span>Notification Système</div>
+            
+            <h1 id="task-title">SYNCHRONISATION...</h1>
+            
+            <p id="task-desc">Récupération sécurisée de la ressource. Veuillez patienter pendant l'indexation de l'élément...</p>
+            
+            <div class="info-grid">
+                <div class="info-node">
+                    <span class="node-label">Catégorie</span>
+                    <span class="node-value" id="task-board"><i data-lucide="layers" style="width:15px; color:var(--crimson);"></i> ...</span>
+                </div>
+                <div class="info-node">
+                    <span class="node-label">Échéance</span>
+                    <span class="node-value" id="task-date"><i data-lucide="calendar" style="width:15px; color:var(--crimson);"></i> ...</span>
+                </div>
+            </div>
+
+            <button class="close-btn" onclick="triggerExitAnimation()" id="actionBtn">
+                <i data-lucide="x-circle" style="width:18px;"></i> Fermer l'aperçu
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+        gsap.registerPlugin(TextPlugin);
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTU5sxQl38nFGMJ_dOVcm6wTqfgdDN3jI",
+            authDomain: "cyrielle-trell.firebaseapp.com",
+            projectId: "cyrielle-trell",
+            storageBucket: "cyrielle-trell.firebasestorage.app",
+            messagingSenderId: "52211982668",
+            appId: "1:52211982668:web:0859414c6c92b7fe3defe9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const taskId = new URLSearchParams(window.location.search).get('id');
+        let taskData = null;
+
+        window.onload = async () => {
+            lucide.createIcons();
+            spawnParticles();
+            runBackgroundAnims();
+            runIntroSequence();
+
+            if (taskId) {
+                const sections = ['pro', 'perso', 'urgent'];
+                for (const sec of sections) {
+                    try {
+                        const snap = await getDoc(doc(db, sec, taskId));
+                        if (snap.exists()) {
+                            taskData = snap.data();
+                            taskData.column = sec;
+                            break;
+                        }
+                    } catch (e) { console.error(e); }
+                }
+            }
+        };
+
+        /* ==========================================================================
+           1 BILLION % GSAP LOGIC
+           ========================================================================== */
+
+        function runBackgroundAnims() {
+            // Mouvement fluide et infini des masses de couleurs en arrière-plan
+            gsap.to(".orb-primary", { x: "10vw", y: "8vh", duration: 7, repeat: -1, yoyo: true, ease: "sine.inOut" });
+            gsap.to(".orb-secondary", { x: "-12vw", y: "-6vh", duration: 9, repeat: -1, yoyo: true, ease: "sine.inOut" });
+        }
+
+        function spawnParticles() {
+            // Génération de micro-particules de lumière rouge lancées dans le décor
+            const container = document.body;
+            for(let i=0; i<25; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                const size = gsap.utils.random(2, 6);
+                gsap.set(p, {
+                    width: size, height: size,
+                    x: gsap.utils.random(0, window.innerWidth),
+                    y: gsap.utils.random(0, window.innerHeight)
+                });
+                container.appendChild(p);
+                
+                // Boucle d'animation infinie par particule
+                gsap.to(p, {
+                    opacity: gsap.utils.random(0.2, 0.6),
+                    y: "-=80",
+                    x: "+=" + gsap.utils.random(-30, 30),
+                    duration: gsap.utils.random(3, 6),
+                    repeat: -1,
+                    yoyo: true,
+                    ease: "power1.inOut"
+                });
+            }
+        }
+
+        function runIntroSequence() {
+            const tl = gsap.timeline({ onComplete: revealCardEngine });
+
+            // Scramble text effect manuel ultra agressif via l'API TextPlugin
+            tl.to("#scrambleTxt", { text: "CONNEXION...", duration: 0.5 })
+              .to("#scrambleTxt", { text: "INDEXATION...", duration: 0.6 })
+              .to("#pBar", { width: "100%", duration: 1.8, ease: "power4.inOut" }, "-=0.8")
+              .to("#loading-overlay", { 
+                  opacity: 0, 
+                  scale: 1.2, 
+                  filter: "blur(20px)",
+                  duration: 0.6, 
+                  ease: "power3.in",
+                  onComplete: () => document.getElementById('loading-overlay').remove()
+              });
+        }
+
+        function revealCardEngine() {
+            if (taskData) {
+                document.getElementById('task-title').innerText = taskData.title;
+                document.getElementById('task-desc').innerText = taskData.description || "Aucune description enregistrée pour cette tâche.";
+                document.getElementById('task-board').innerHTML = `<i data-lucide="layers" style='width:15px; color:var(--crimson);'></i> ${taskData.column.toUpperCase()}`;
+                if (taskData.dueDate) {
+                    document.getElementById('task-date').innerHTML = `<i data-lucide="calendar" style='width:15px; color:var(--crimson);'></i> ${taskData.dueDate}`;
+                }
+                lucide.createIcons();
+            } else {
+                document.getElementById('task-title').innerText = "Tâche Introuvable";
+                document.getElementById('task-desc').innerText = "L'élément demandé est introuvable ou a été supprimé du tableau de bord.";
+            }
+
+            // Entrée de la carte avec une transition de flou cinétique, de rotation 3D et d'échelle
+            gsap.fromTo("#task-card", 
+                { opacity: 0, scale: 0.5, rotationX: -60, z: -400, filter: "blur(30px)" },
+                { opacity: 1, scale: 1, rotationX: 0, z: 0, filter: "blur(0px)", duration: 1.2, ease: "power4.out" }
+            );
+
+            // Animation en cascade (stagger) des blocs internes
+            gsap.from(".status-badge, #task-title, #task-desc, .info-grid, #actionBtn", {
+                opacity: 0, y: 40, duration: 0.8, stagger: 0.1, ease: "back.out(1.4)"
+            }, "-=0.8");
+
+            // Activation de la parallaxe 3D souris une fois l'apparition terminée
+            setTimeout(init3DParallax, 1200);
+        }
+
+        /* ==========================================================================
+           INTERACTION PARALLAXE 3D (SOURIS) VIA GSAP
+           ========================================================================== */
+        function init3DParallax() {
+            const container = document.getElementById('tiltContainer');
+            const card = document.getElementById('task-card');
+
+            document.addEventListener('mousemove', (e) => {
+                const { clientX, clientY } = e;
+                const { innerWidth, innerHeight } = window;
+                
+                // Calcul de l'angle basé sur la position de la souris
+                const xAngle = ((clientY / innerHeight) - 0.5) * 25; // max 25 deg horizontal tilt
+                const yAngle = ((clientX / innerWidth) - 0.5) * -25; // max 25 deg vertical tilt
+
+                // GSAP gère l'inertie de la rotation pour un rendu ultra fluide
+                gsap.to(card, {
+                    rotationX: xAngle,
+                    rotationY: yAngle,
+                    duration: 0.6,
+                    ease: "power2.out",
+                    overwrite: "auto"
+                });
+            });
+
+            // Reset de la position si la souris quitte l'écran
+            document.addEventListener('mouseleave', () => {
+                gsap.to(card, { rotationX: 0, rotationY: 0, duration: 0.8, ease: "power2.out" });
+            });
+        }
+
+        window.triggerExitAnimation = () => {
+            gsap.to("#task-card", {
+                scale: 0.7, opacity: 0, filter: "blur(25px)", rotationY: 45, duration: 0.5, ease: "power3.in",
+                onComplete: () => { window.location.href = "index.html"; }
+            });
+        };
+    </script>
+</body>
+</html>
