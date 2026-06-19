@@ -401,14 +401,21 @@
                 const headers = new Headers();
                 headers.append("Authorization", `Bearer ${token}`);
                 
-                const response = await fetch("https://graph.microsoft.com/v1.0/me/calendar/events?$select=subject,start,end&$top=50", { headers });
-                const data = await response.json();
-                
-                if(data.value) {
-                    outlookEvents = data.value;
-                    showToast("Outlook Connecté", "Vos réunions ont été synchronisées !");
-                    renderCalendar();
-                }
+                // Définit la plage de dates pour juin 2026
+const start = "2026-06-01T00:00:00Z";
+const end = "2026-06-30T23:59:59Z";
+
+// Utilise calendarView au lieu de events
+const url = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${start}&endDateTime=${end}&$select=subject,start,end&$top=50`;
+
+const response = await fetch(url, { headers });
+const data = await response.json();
+
+if(data.value) {
+    outlookEvents = data.value;
+    showToast("Outlook Connecté", "Réunions du mois de juin récupérées !");
+    renderCalendar();
+}
             } catch (error) {
                 console.error(error);
                 showToast("Erreur de connexion", "La connexion Microsoft a échoué.", "error");
